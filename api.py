@@ -2,6 +2,7 @@ import sys
 import flask
 from flask import request, jsonify
 import requests
+from collections import defaultdict
 
 def log(msg):
     print(msg, file=sys.stderr, flush=True)
@@ -16,6 +17,10 @@ class PokemonCollection:
         if len(self.members) >= self.capacity:
             return False
         self.members.append(pokemon)
+        for x in self.members:
+            for y in self.members:
+                contacts[x["id"]].add(y["id"])
+                contacts[y["id"]].add(x["id"])
         return True
 
     def remove(self, pokeAPI_id):
@@ -32,18 +37,20 @@ def to_json(collection):
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
 
+pokemon_types = dict()
 pokemon = dict()
 storage = dict()
 party = PokemonCollection('party', 6)
 storage['party'] = party
+contacts = defaultdict(set)
 
 @app.route("/api/v1/pokemon/<id>")
-def get_pokemon(id):
-    if id not in pokemon:
-        orig = requests.get("https://pokeapi.co/api/v2/pokemon/" + str(id)).json()
+def get_pokemon(pokeAPI_id):
+    if pokeAPI_id not in pokemon_types:
+        orig = requests.get("https://pokeapi.co/api/v2/pokemon/" + str(pokeAPI_id)).json()
 
         simple = {
-            "pokeAPI_id": id,
+            "pokeAPI_id": pokeAPI_id,
             "name": orig["name"],
             "height": orig["height"],
             "weight": orig["weight"],
@@ -66,8 +73,13 @@ def get_pokemon(id):
             simple["type_2_name"] = type2["name"]
             simple["type_2_generation"] = type2["generation"]["name"]
 
-        pokemon[id] = simple
-    return pokemon[id]
+        pokemon_types[pokeAPI_id] = simple
+
+    id = str(len(pokemon) + 1)
+    result = pokemon_types[pokeAPI_id].copy()
+    result["id"] = id
+    pokemon[id] = result
+    return result
 
 @app.route("/api/v1/party", methods=["GET"])
 def read_party():
@@ -146,5 +158,16 @@ def move_member():
         source.add(pokemon)
         return "Destination collection is full", 400
     return "OK", 200
+
+@app.route("/api/v1/contacttrace/<zero_id>/<pokemon_id>", methods=["GET"])
+def contact_trace(zero_id, pokemon_id):
+    if zero_id not in pokemon:
+        return "Patient zero not found", 404
+    if pokemon_id not in pokemon:
+        return "Pokemon not found", 404
+    if zero_id in contacts[pokemon_id]:
+        return "Pokemon was exposed to patient zero", 200
+    else:
+        return "Pokemon was not exposed to patient zero", 200
 
 app.run()

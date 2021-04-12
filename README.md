@@ -53,3 +53,9 @@ Move a pokemon from the party to a box:
 ```
 curl -X POST -H 'Content-Type: application/json' -d '{"src_id":"party","dst_id":1,"pokeAPI_id":3}' http://localhost:5000/api/v1/move
 ```
+
+Contact trace patient zero and another pokemon by ID:
+
+```
+curl http://localhost:5000/api/v1/contacttrace/1/3
+```
